@@ -14,3 +14,15 @@ npm install
 
 # 4. Start the local server
 npm run dev
+
+
+Backend 
+This repo contains a small backend code 
+create python env 
+python -m venv venv
+go to env 
+.\venv\Scripts\activate.ps1      
+
+
+run pip install -r requirments.txt
+and run main.py  
