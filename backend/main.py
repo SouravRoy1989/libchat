@@ -1,11 +1,15 @@
 import uvicorn
 from fastapi import FastAPI, HTTPException, status, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from typing import Dict, List, Optional
 import uuid
 from motor.motor_asyncio import AsyncIOMotorClient
 from passlib.context import CryptContext
+from typing import Optional
+
+# --- Local Imports ---
+from utils.file_functions import generate_formatted_name
+# 🎨 Import your Pydantic models from the new models.py file
+from models import RegisterRequest, LoginRequest, User, ChatRequest
 
 # --- Database Configuration ---
 MONGO_DATABASE_URL = "mongodb://localhost:27017"
@@ -34,24 +38,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Pydantic Models ---
-class RegisterRequest(BaseModel):
-    name: str
-    email: str
-    password: str
+# --- Pydantic Models have been moved to models.py ---
 
-class LoginRequest(BaseModel):
-    email: str
-    password: str
-
-class User(BaseModel):
-    id: str = Field(alias="_id")
-    name: str
-    email: str
-    avatar: Optional[str] = None
-    role: str = "USER"
-    class Config:
-        populate_by_name = True
 
 # --- API Endpoints ---
 
@@ -62,7 +50,7 @@ async def register(register_data: RegisterRequest):
     Checks for existing users, hashes the password, and creates a new user
     document with additional empty collections for user-specific data.
     """
-    # --- Existing Logic ---
+    
     existing_user = await user_collection.find_one({"email": register_data.email})
     if existing_user:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A user with this email already exists.")
@@ -70,20 +58,19 @@ async def register(register_data: RegisterRequest):
     hashed_password = get_password_hash(register_data.password)
     user_id = str(uuid.uuid4())
     
-    # --- Modified User Document ---
+    folder_name_for_user = generate_formatted_name(register_data.name)
     new_user = {
         "_id": user_id,
         "name": register_data.name,
         "email": register_data.email,
         "password": hashed_password,
         "role": "USER",
-        # --- New Changes: Added empty collections for user properties ---
+        "user_dedicated_folder": folder_name_for_user,
         "audio_files_name": [],
         "chat_history": [],
         "file_name": [],
     }
     
-    # --- Existing Logic ---
     await user_collection.insert_one(new_user)
     return {"message": "User registered successfully"}
 
@@ -123,8 +110,6 @@ async def get_user(request: Request):
     if not token:
         return None # No cookie, so no user logged in.
     
-    # In a real app, you'd decode the token to get the user ID.
-    # Here, we'll just find the first user as a demonstration.
     user = await user_collection.find_one()
     if user:
         return User(**user)
@@ -168,6 +153,28 @@ async def get_config():
         "user": None,
         "serverVersion": "0.0.6-py-mongo",
     }
+    
+@app.post("/api/chat/invoke")
+async def handle_chat(chat_request: ChatRequest):
+    """
+    Handles an incoming chat message from the user.
+
+    This endpoint receives the user's query, prints it to the console for debugging,
+    and returns a hardcoded, structured response to simulate an LLM interaction.
+    """
+    print("--- Received Chat Request ---")
+    print(f"User Email: {chat_request.user_email}")
+    print(f"Selected Model: {chat_request.user_model}")
+    print(f"Message: {chat_request.human_text}")
+    print("---------------------------")
+
+    response_data = {
+        "user_query": chat_request.human_text,
+        "ai response": f"This is a hardcoded AI response to your message: \"{chat_request.human_text}\"",
+        "additional_message": ""
+    }
+
+    return response_data
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

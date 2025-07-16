@@ -3,31 +3,30 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
-import { getGreeting } from '../../utils/greetings'; // Import the new utility
+import { getGreeting } from '../../utils/greetings';
 
+// This was missing from your previous code.
 interface LandingProps {
-  ModelSelector: React.ElementType;
+  ModelSelector?: React.ElementType; // Made optional just in case
 }
 
 export default function Landing({ ModelSelector }: LandingProps) {
   const { user } = useAuth();
   const greeting = getGreeting();
-  // We combine the text here to animate it as a single sentence
   const animatedText = `${greeting}, ${user?.name || ''}`;
 
-  // Animation variants for the sentence container
+  
   const sentenceVariants = {
     hidden: { opacity: 1 },
     visible: {
       opacity: 1,
       transition: {
         delay: 0.3,
-        staggerChildren: 0.05, 
+        staggerChildren: 0.05,
       },
     },
   };
 
-  // Animation variants for each individual letter
   const letterVariants = {
     hidden: { opacity: 0, y: 20 },
     visible: {
@@ -44,13 +43,14 @@ export default function Landing({ ModelSelector }: LandingProps) {
   return (
     <div className="flex h-full flex-col items-center justify-center text-white">
       <div className="text-center">
-        <div className="mb-4">
-          <ModelSelector />
-        </div>
+        {ModelSelector && (
+          <div className="mb-4">
+            <ModelSelector />
+          </div>
+        )}
         
-        {/* Animated Greeting Text */}
         <motion.h1
-          className="text-3xl font-semibold overflow-hidden" // overflow-hidden helps contain the animation
+          className="text-3xl font-semibold overflow-hidden"
           variants={sentenceVariants}
           initial="hidden"
           animate="visible"
@@ -59,10 +59,10 @@ export default function Landing({ ModelSelector }: LandingProps) {
           {animatedText.split('').map((char, index) => (
             <motion.span
               key={char + '-' + index}
-              variants={letterVariants}
-              className="inline-block" // Required for individual character transforms
+              variants={letterVariants} 
+              className="inline-block"
             >
-              {char === ' ' ? '\u00A0' : char} {/* Render space as a non-breaking space */}
+              {char === ' ' ? '\u00A0' : char}
             </motion.span>
           ))}
         </motion.h1>

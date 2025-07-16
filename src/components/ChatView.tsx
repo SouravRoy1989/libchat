@@ -1,22 +1,71 @@
 // src/components/ChatView.tsx
 
-import React from 'react';
+import React, { useState } from 'react';
 import Landing from './chat/Landing';
 import Messages from './chat/Messages';
 import TextInput from './chat/TextInput';
 import ModelSelector from './chat/ModelSelector';
+import { useAuth } from '../contexts/AuthContext';
+// import { useModel } from '../contexts/ModelContext'; // Assuming this will be used later
+import { Message } from '../types';
 
 interface ChatViewProps {
   isNewChat: boolean;
   setIsNewChat: React.Dispatch<React.SetStateAction<boolean>>;
-  isSidebarOpen: boolean; // 🎨 Accept the new prop
+  isSidebarOpen: boolean;
 }
 
 export default function ChatView({ isNewChat, setIsNewChat, isSidebarOpen }: ChatViewProps) {
-  const handleSendMessage = (message: string) => {
-    console.log('Sending message:', message);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const { user } = useAuth();
+  // const { selectedModel } = useModel(); // Uncomment when ModelContext is ready
+
+  const handleSendMessage = async (message: string) => {
+    // Immediately add the user's message to the UI
+    const userMessage: Message = { role: 'user', content: message };
+    setMessages(prevMessages => [...prevMessages, userMessage]);
+
     if (isNewChat) {
       setIsNewChat(false);
+    }
+
+    // Ensure we have a user email before sending to the backend
+    if (!user?.email) {
+      const errorMessage: Message = { role: 'assistant', content: "Error: User not logged in. Please log in to chat." };
+      setMessages(prevMessages => [...prevMessages, errorMessage]);
+      return;
+    }
+
+    // --- Live API Call to FastAPI Backend ---
+    const payload = {
+      human_text: message,
+      user_email: user.email,
+      user_model: "gpt-4o-mini", // Using a hardcoded model for now
+    };
+
+    try {
+      const response = await fetch('http://localhost:8000/api/chat/invoke', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // Add the AI's response to the UI
+      const aiMessage: Message = { role: 'assistant', content: data["ai response"] };
+      setMessages(prevMessages => [...prevMessages, aiMessage]);
+
+    } catch (error) {
+      console.error("Failed to fetch response from backend:", error);
+      const errorMessage: Message = { role: 'assistant', content: "Sorry, I couldn't connect to the server. Please try again later." };
+      setMessages(prevMessages => [...prevMessages, errorMessage]);
     }
   };
 
@@ -24,14 +73,13 @@ export default function ChatView({ isNewChat, setIsNewChat, isSidebarOpen }: Cha
   if (isNewChat) {
     return (
       <div className="relative flex h-full w-full flex-1 flex-col overflow-hidden">
-        {/* 🎨 Conditionally add left padding to this header */}
         <header className={`absolute top-0 left-0 z-10 p-4 transition-all duration-300 ${!isSidebarOpen ? 'pl-16' : ''}`}>
           <ModelSelector />
         </header>
         
         <main className="flex flex-1 flex-col items-center justify-center">
           <div className="mx-auto w-full max-w-3xl px-4">
-            <Landing ModelSelector={'symbol'} />
+            <Landing />
             <div className="mt-12">
               <TextInput onSendMessage={handleSendMessage} />
             </div>
@@ -50,13 +98,12 @@ export default function ChatView({ isNewChat, setIsNewChat, isSidebarOpen }: Cha
   // Otherwise, render the standard chat interface.
   return (
     <div className="relative flex h-full w-full flex-1 flex-col overflow-hidden">
-      {/* 🎨 Conditionally add left padding here as well */}
       <header className={`flex w-full shrink-0 items-center justify-start p-4 transition-all duration-300 ${!isSidebarOpen ? 'pl-16' : ''}`}>
         <ModelSelector />
       </header>
 
       <main className="flex-1 overflow-y-auto">
-        <Messages />
+        <Messages messages={messages} />
       </main>
       
       <div className="w-full shrink-0">
