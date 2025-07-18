@@ -1,12 +1,10 @@
-// src/components/ChatView.tsx
-
+//src/components/ChatView.tsx
 import React, { useState } from 'react';
 import Landing from './chat/Landing';
 import Messages from './chat/Messages';
 import TextInput from './chat/TextInput';
 import ModelSelector from './chat/ModelSelector';
 import { useAuth } from '../contexts/AuthContext';
-// import { useModel } from '../contexts/ModelContext'; // Assuming this will be used later
 import { Message } from '../types';
 
 interface ChatViewProps {
@@ -17,48 +15,76 @@ interface ChatViewProps {
 
 export default function ChatView({ isNewChat, setIsNewChat, isSidebarOpen }: ChatViewProps) {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [selectedModel, setSelectedModel] = useState('gpt-4o-mini');
   const { user } = useAuth();
-  // const { selectedModel } = useModel(); // Uncomment when ModelContext is ready
 
-  const handleSendMessage = async (message: string) => {
-    // Immediately add the user's message to the UI
-    const userMessage: Message = { role: 'user', content: message };
+  const handleSendMessage = async (message: string, image?: File, textFile?: File) => {
+    console.log("handleSendMessage in ChatView called. Current user state:", user);
+
+    if (!user || !user.email) {
+      const errorMessage: Message = { role: 'assistant', content: "Error: User not logged in or user data is incomplete. Please log in again." };
+      setMessages(prevMessages => [...prevMessages, errorMessage]);
+      return;
+    }
+
+    const userMessage: Message = { role: 'user', content: message || (image ? "Image uploaded" : "File uploaded") };
     setMessages(prevMessages => [...prevMessages, userMessage]);
 
     if (isNewChat) {
       setIsNewChat(false);
     }
 
-    // Ensure we have a user email before sending to the backend
-    if (!user?.email) {
-      const errorMessage: Message = { role: 'assistant', content: "Error: User not logged in. Please log in to chat." };
-      setMessages(prevMessages => [...prevMessages, errorMessage]);
-      return;
-    }
-
-    // --- Live API Call to FastAPI Backend ---
-    const payload = {
-      human_text: message,
-      user_email: user.email,
-      user_model: "gpt-4o-mini", // Using a hardcoded model for now
-    };
-
     try {
-      const response = await fetch('http://localhost:8000/api/chat/invoke', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
+      let data;
+      if (image) {
+        const formData = new FormData();
+        formData.append('user_email', user.email);
+        formData.append('model_name', selectedModel);
+        formData.append('user_message', message);
+        formData.append('image_file', image);
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const response = await fetch('http://localhost:8000/api/chat/invoke_with_image', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        data = await response.json();
+        data['ai response'] = data.ai_response;
+
+      } else if (textFile) {
+        const formData = new FormData();
+        formData.append('user_email', user.email);
+        formData.append('model_name', selectedModel);
+        formData.append('user_message', message);
+        formData.append('text_file', textFile);
+
+        const response = await fetch('http://localhost:8000/api/chat/invoke_with_text_file', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        data = await response.json();
+        data['ai response'] = data.ai_response;
+
+      } else {
+        const payload = {
+          human_text: message,
+          user_email: user.email,
+          user_model: selectedModel,
+        };
+
+        const response = await fetch('http://localhost:8000/api/chat/invoke', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        data = await response.json();
       }
 
-      const data = await response.json();
-
-      // Add the AI's response to the UI
       const aiMessage: Message = { role: 'assistant', content: data["ai response"] };
       setMessages(prevMessages => [...prevMessages, aiMessage]);
 
@@ -69,14 +95,12 @@ export default function ChatView({ isNewChat, setIsNewChat, isSidebarOpen }: Cha
     }
   };
 
-  // If it's a new chat, render the centered landing page.
   if (isNewChat) {
     return (
       <div className="relative flex h-full w-full flex-1 flex-col overflow-hidden">
         <header className={`absolute top-0 left-0 z-10 p-4 transition-all duration-300 ${!isSidebarOpen ? 'pl-16' : ''}`}>
-          <ModelSelector />
+          <ModelSelector selectedModel={selectedModel} setSelectedModel={setSelectedModel} />
         </header>
-        
         <main className="flex flex-1 flex-col items-center justify-center">
           <div className="mx-auto w-full max-w-3xl px-4">
             <Landing />
@@ -85,7 +109,6 @@ export default function ChatView({ isNewChat, setIsNewChat, isSidebarOpen }: Cha
             </div>
           </div>
         </main>
-        
         <footer className="w-full shrink-0 px-4 pb-4">
           <p className="text-center text-xs text-gray-500">
             LibreChat - Rebuilt with React & FastAPI
@@ -95,17 +118,14 @@ export default function ChatView({ isNewChat, setIsNewChat, isSidebarOpen }: Cha
     );
   }
 
-  // Otherwise, render the standard chat interface.
   return (
     <div className="relative flex h-full w-full flex-1 flex-col overflow-hidden">
       <header className={`flex w-full shrink-0 items-center justify-start p-4 transition-all duration-300 ${!isSidebarOpen ? 'pl-16' : ''}`}>
-        <ModelSelector />
+        <ModelSelector selectedModel={selectedModel} setSelectedModel={setSelectedModel} />
       </header>
-
       <main className="flex-1 overflow-y-auto">
         <Messages messages={messages} />
       </main>
-      
       <div className="w-full shrink-0">
         <div className="mx-auto w-full max-w-3xl px-4 pb-4">
           <TextInput onSendMessage={handleSendMessage} />

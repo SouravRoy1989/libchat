@@ -1,40 +1,62 @@
-// src\components\chat\ModelSelector.tsx
+// src/components/chat/ModelSelector.tsx
+import React, { useState, useEffect } from 'react';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { useModel } from '../../contexts/ModelContext';
-import Logo from '../Logo'; 
-import ModelMenu from './ModelMenu';
+// Define the props the component will accept
+interface ModelSelectorProps {
+  selectedModel: string;
+  setSelectedModel: (model: string) => void;
+}
 
-export default function ModelSelector() {
-  const { conversation } = useModel();
-  const [isOpen, setIsOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+// Define a type for the model structure
+interface Model {
+  name: string;
+  provider: string;
+}
 
-  // Close menu when clicking outside
+export default function ModelSelector({ selectedModel, setSelectedModel }: ModelSelectorProps) {
+  const [models, setModels] = useState<Model[]>([]);
+
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [menuRef]);
+    // Fetches the model configuration from your backend
+    const fetchModels = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/config');
+        const config = await response.json();
+        
+        // Flattens the nested model data into a single array
+        const allModels: Model[] = [];
+        for (const provider in config.endpoints) {
+          if (config.endpoints[provider].models) {
+            config.endpoints[provider].models.forEach((modelName: string) => {
+              allModels.push({ name: modelName, provider });
+            });
+          }
+        }
+        setModels(allModels);
 
-  if (!conversation) {
-    return null; // or a loading state
-  }
+        // If no model is selected yet, set the first one as the default
+        if (!selectedModel && allModels.length > 0) {
+          setSelectedModel(allModels[0].name);
+        }
+      } catch (error) {
+        console.error("Failed to fetch models:", error);
+      }
+    };
+
+    fetchModels();
+  }, [setSelectedModel, selectedModel]); // Effect runs when the component mounts
 
   return (
-    <div className="relative" ref={menuRef}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 rounded-md bg-gray-900/50 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-gray-700"
-      >
-        <Logo />
-        <span>{conversation.model}</span>
-      </button>
-      {isOpen && <ModelMenu setIsOpen={setIsOpen} />}
-    </div>
+    <select
+      value={selectedModel}
+      onChange={(e) => setSelectedModel(e.target.value)}
+      className="bg-zinc-700 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+    >
+      {models.map((model) => (
+        <option key={`${model.provider}-${model.name}`} value={model.name}>
+          {model.name}
+        </option>
+      ))}
+    </select>
   );
 }

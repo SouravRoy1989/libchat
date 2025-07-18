@@ -5,10 +5,13 @@ import uuid
 from motor.motor_asyncio import AsyncIOMotorClient
 from passlib.context import CryptContext
 from typing import Optional
+import os
+import shutil
+from fastapi import UploadFile, File, Form
 
 # --- Local Imports ---
 from utils.file_functions import generate_formatted_name
-# 🎨 Import your Pydantic models from the new models.py file
+#  Import your Pydantic models from the new models.py file
 from models import RegisterRequest, LoginRequest, User, ChatRequest
 
 # --- Database Configuration ---
@@ -175,6 +178,94 @@ async def handle_chat(chat_request: ChatRequest):
     }
 
     return response_data
+
+@app.post("/api/chat/invoke_with_image")
+async def handle_chat_with_image(
+    # 🎨 Changed to accept user_email instead of user_id
+    user_email: str = Form(...),
+    model_name: str = Form(...),
+    user_message: str = Form(...),
+    image_file: UploadFile = File(...)
+):
+    """
+    Handles a chat message that includes an image upload.
+    This endpoint saves the uploaded image to a user-specific folder
+    and returns a response confirming the file path.
+    """
+    print("--- Received Chat Request with Image ---")
+    print(f"User Email: {user_email}")
+    print(f"Selected Model: {model_name}")
+    print(f"Message: {user_message}")
+    print(f"Image Filename: {image_file.filename}")
+    print("---------------------------------------")
+
+    # 🎨 Find the user by their email address
+    user = await user_collection.find_one({"email": user_email})
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+    user_folder_name = user.get("user_dedicated_folder")
+    if not user_folder_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User folder configuration is missing.")
+
+    base_image_dir = "images"
+    user_specific_dir = os.path.join(base_image_dir, user_folder_name)
+    
+    os.makedirs(user_specific_dir, exist_ok=True)
+
+    file_path = os.path.join(user_specific_dir, image_file.filename)
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(image_file.file, buffer)
+
+    return {
+        "message": "Image uploaded successfully",
+        "image_path_on_server": file_path,
+        "user_query": user_message,
+        "ai_response": f"I have received your image '{image_file.filename}' and your message. What would you like to know about it?"
+    }
+
+@app.post("/api/chat/invoke_with_text_file")
+async def handle_chat_with_text_file(
+    user_email: str = Form(...),
+    model_name: str = Form(...),
+    user_message: str = Form(...),
+    text_file: UploadFile = File(...)
+):
+    print("--- Received Chat Request with Text File ---")
+    print(f"User Email: {user_email}")
+    print(f"Selected Model: {model_name}")
+    print(f"Message: {user_message}")
+    print(f"Text Filename: {text_file.filename}")
+    print("------------------------------------------")
+
+    user = await user_collection.find_one({"email": user_email})
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+    user_folder_name = user.get("user_dedicated_folder")
+    if not user_folder_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User folder configuration is missing.")
+
+    # Save to a 'text_files' directory
+    base_text_dir = "text_files"
+    user_specific_dir = os.path.join(base_text_dir, user_folder_name)
+    
+    os.makedirs(user_specific_dir, exist_ok=True)
+
+    file_path = os.path.join(user_specific_dir, text_file.filename)
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(text_file.file, buffer)
+
+    return {
+        "message": "Text file uploaded successfully",
+        "file_path_on_server": file_path,
+        "user_query": user_message,
+        "ai_response": f"I have received your file '{text_file.filename}' located at '{file_path}'. How can I help you with it?"
+    }
+
+
+
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
