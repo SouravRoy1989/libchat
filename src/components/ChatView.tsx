@@ -1,4 +1,5 @@
 //src/components/ChatView.tsx
+
 import React, { useState } from 'react';
 import Landing from './chat/Landing';
 import Messages from './chat/Messages';
@@ -7,14 +8,17 @@ import ModelSelector from './chat/ModelSelector';
 import { useAuth } from '../contexts/AuthContext';
 import { Message } from '../types';
 
+//  Updated props to include messages and setMessages
 interface ChatViewProps {
   isNewChat: boolean;
   setIsNewChat: React.Dispatch<React.SetStateAction<boolean>>;
   isSidebarOpen: boolean;
+  messages: Message[];
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
 }
 
-export default function ChatView({ isNewChat, setIsNewChat, isSidebarOpen }: ChatViewProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
+export default function ChatView({ isNewChat, setIsNewChat, isSidebarOpen, messages, setMessages }: ChatViewProps) {
+  //  Removed local message state, as it's now managed by ChatPage
   const [selectedModel, setSelectedModel] = useState('gpt-4o-mini');
   const { user } = useAuth();
 
@@ -50,7 +54,7 @@ export default function ChatView({ isNewChat, setIsNewChat, isSidebarOpen }: Cha
         
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         data = await response.json();
-        data['ai response'] = data.ai_response;
+        data['ai_response'] = data.ai_response;
 
       } else if (textFile) {
         const formData = new FormData();
@@ -66,7 +70,7 @@ export default function ChatView({ isNewChat, setIsNewChat, isSidebarOpen }: Cha
         
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         data = await response.json();
-        data['ai response'] = data.ai_response;
+        data['ai_response'] = data.ai_response;
 
       } else {
         const payload = {
@@ -85,7 +89,7 @@ export default function ChatView({ isNewChat, setIsNewChat, isSidebarOpen }: Cha
         data = await response.json();
       }
 
-      const aiMessage: Message = { role: 'assistant', content: data["ai response"] };
+      const aiMessage: Message = { role: 'assistant', content: data["ai_response"] };
       setMessages(prevMessages => [...prevMessages, aiMessage]);
 
     } catch (error) {

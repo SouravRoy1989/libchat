@@ -4,16 +4,29 @@ import { AnimatePresence } from 'framer-motion';
 import SideNav from '../components/SideNav';
 import ChatView from '../components/ChatView';
 import OpenSidebarButton from '../components/OpenSidebarButton';
+import { Message } from '../types'; // Import the Message type
 
 export default function ChatPage() {
   const [isNewChat, setIsNewChat] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  //  Message state is now managed here
+  const [messages, setMessages] = useState<Message[]>([]);
+
+  //  Function to clear the chat and reset the view
+  const handleNewChat = () => {
+    setMessages([]);
+    setIsNewChat(true);
+  };
 
   return (
     <div className="flex h-screen w-full bg-zinc-800 text-white">
       <AnimatePresence>
         {isSidebarOpen && (
-          <SideNav setIsSidebarOpen={setIsSidebarOpen} />
+          //  Pass the handleNewChat function to the SideNav
+          <SideNav 
+            setIsSidebarOpen={setIsSidebarOpen} 
+            onNewChat={handleNewChat} 
+          />
         )}
       </AnimatePresence>
       
@@ -21,11 +34,13 @@ export default function ChatPage() {
         {!isSidebarOpen && (
           <OpenSidebarButton onClick={() => setIsSidebarOpen(true)} />
         )}
-        {/* 🎨 Pass the sidebar state down to the ChatView */}
+        {/*  Pass messages and setMessages down to ChatView */}
         <ChatView 
           isNewChat={isNewChat} 
           setIsNewChat={setIsNewChat} 
-          isSidebarOpen={isSidebarOpen} 
+          isSidebarOpen={isSidebarOpen}
+          messages={messages}
+          setMessages={setMessages}
         />
       </main>
     </div>
