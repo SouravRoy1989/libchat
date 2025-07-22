@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { usePopup } from '../../hooks/usePopup';
 
-// --- Icons ---
+// --- Icons (No changes needed here) ---
 const PaperclipIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>;
 const MicIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line></svg>;
 const ArrowUpIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>;
@@ -34,10 +34,24 @@ export default function TextInput({ onSendMessage }: TextInputProps) {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const textFileInputRef = useRef<HTMLInputElement>(null);
 
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    if(imageInputRef.current) imageInputRef.current.value = "";
+  }
+
+  const removeTextFile = () => {
+    setTextFile(null);
+    if(textFileInputRef.current) textFileInputRef.current.value = "";
+  }
+
   const handleSend = () => {
     if (text.trim() || imageFile || textFile) {
       onSendMessage(text, imageFile ?? undefined, textFile ?? undefined);
+      // **FIX 1**: Clear the text AND file states after sending
       setText('');
+      removeImage();
+      removeTextFile();
     }
   };
 
@@ -61,6 +75,8 @@ export default function TextInput({ onSendMessage }: TextInputProps) {
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // **FIX 2**: Clear any other file types to ensure only one is attached
+      removeTextFile();
       setImageFile(file);
       setImagePreview(URL.createObjectURL(file));
     }
@@ -69,23 +85,15 @@ export default function TextInput({ onSendMessage }: TextInputProps) {
   const handleTextFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // **FIX 2**: Clear any other file types to ensure only one is attached
+      removeImage();
       setTextFile(file);
     }
   };
   
-  const removeImage = () => {
-    setImageFile(null);
-    setImagePreview(null);
-    if(imageInputRef.current) imageInputRef.current.value = "";
-  }
-
-  const removeTextFile = () => {
-    setTextFile(null);
-    if(textFileInputRef.current) textFileInputRef.current.value = "";
-  }
-
   return (
     <div ref={uploadMenuRef} className="relative">
+      {/* --- This section is unchanged --- */}
       {isUploadMenuOpen && (
         <div className="absolute bottom-full mb-2 w-60 rounded-xl bg-zinc-900 p-1 text-white shadow-lg">
           <ul>
@@ -93,23 +101,23 @@ export default function TextInput({ onSendMessage }: TextInputProps) {
               <UploadImageIcon />
               <span className="text-sm">Upload Image</span>
             </li>
-            {/* 🎨 ADDED THE MISSING onClick HANDLER HERE */}
             <li onClick={handleTextUploadClick} className="flex cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-zinc-800">
               <UploadTextIcon />
               <span className="text-sm">Upload as Text</span>
             </li>
-            <li className="flex cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-zinc-800">
+            <li className="flex cursor-not-allowed items-center gap-3 rounded-lg p-2 text-zinc-500">
               <FileSearchIcon />
-              <span className="text-sm">Upload for File Search</span>
+              <span className="text-sm">File Search (coming soon)</span>
             </li>
-            <li className="flex cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-zinc-800">
+            <li className="flex cursor-not-allowed items-center gap-3 rounded-lg p-2 text-zinc-500">
               <CodeInterpreterIcon />
-              <span className="text-sm">Upload for Code Interpreter</span>
+              <span className="text-sm">Code Interpreter (coming soon)</span>
             </li>
           </ul>
         </div>
       )}
 
+      {/* --- This section is unchanged --- */}
       <input type="file" ref={imageInputRef} onChange={handleImageChange} className="hidden" accept="image/jpeg, image/png" />
       <input type="file" ref={textFileInputRef} onChange={handleTextFileChange} className="hidden" accept=".pdf,.doc,.docx,.txt" />
 
@@ -134,6 +142,7 @@ export default function TextInput({ onSendMessage }: TextInputProps) {
             )}
         </div>
 
+      {/* --- This section is unchanged --- */}
         <div className="relative flex items-center">
           <textarea
             value={text}

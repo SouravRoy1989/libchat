@@ -1,5 +1,5 @@
 import uvicorn
-from fastapi import FastAPI, HTTPException, status, Response, Request, UploadFile, File, Form
+from fastapi import Body, FastAPI, HTTPException, status, Response, Request, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 import uuid
 import os
@@ -13,7 +13,7 @@ from passlib.context import CryptContext
 # --- Local Imports ---
 from db_connections import get_user_collection
 from utils.file_functions import generate_formatted_name
-from models import RegisterRequest, LoginRequest, User, ChatRequest
+from models import DeleteChatRequest, RegisterRequest, LoginRequest, User, ChatRequest, Message, Conversation
 
 # --- FastAPI App Configuration ---
 # Create the FastAPI app instance
@@ -161,57 +161,119 @@ async def get_config():
         "user": None,
         "serverVersion": "0.0.6-py-mongo",
     }
-    
+
+
+
+
 @app.post("/api/chat/invoke")
 async def handle_chat(chat_request: ChatRequest):
-    """
-    Handles an incoming chat message from the user.
-    """
-    print(f"--- Received Chat Request from {chat_request.user_email} for model {chat_request.user_model} ---")
-    print(f"Message: {chat_request.human_text}")
-    print("--------------------------------------------------------------------------")
+    # ... (find user logic)
 
-    response_data = {
-        "user_query": chat_request.human_text,
-        "ai_response": f"This is a hardcoded AI response to your message: {chat_request.human_text}",
-        "additional_message": ""
+    user_query_message = Message(role="user", content=chat_request.human_text)
+    ai_response_message = Message(role="ai", content=f"This is a hardcoded AI response to your message: {chat_request.human_text}")
+
+    if not chat_request.conversation_id:
+        # This is a NEW conversation
+        new_conversation = Conversation(
+            title=chat_request.human_text,
+            messages=[user_query_message, ai_response_message]
+        )
         
-    }
-    print(response_data)
+        await user_collection.update_one(
+            {"email": chat_request.user_email},
+            {"$push": {"chat_history": new_conversation.model_dump()}}
+        )
+        
+        # **CHANGE HERE: Return the full new conversation object**
+        response_data = {
+            "ai_response": ai_response_message.content,
+            "new_conversation": new_conversation.model_dump()
+        }
+    else:
+        # This is an EXISTING conversation
+        await user_collection.update_one(
+            {"email": chat_request.user_email, "chat_history.id": chat_request.conversation_id},
+            {"$push": {"chat_history.$.messages": {"$each": [user_query_message.model_dump(), ai_response_message.model_dump()]}}}
+        )
+
+        # **CHANGE HERE: Indicate that no new conversation was created**
+        response_data = {
+            "ai_response": ai_response_message.content,
+            "new_conversation": None
+        }
+    
     return response_data
+
 
 @app.post("/api/chat/invoke_with_image")
 async def handle_chat_with_image(
+    # These Form fields come from the FormData
     user_email: str = Form(...),
     model_name: str = Form(...),
     user_message: str = Form(...),
-    image_file: UploadFile = File(...)
+    image_file: UploadFile = File(...),
+    # Add this to handle existing conversations
+    conversation_id: Optional[str] = Form(None)
 ):
     """
-    Handles a chat message that includes an image upload.
+    Handles a chat message with an image, saves the image,
+    and updates the conversation history in MongoDB.
     """
     user = await user_collection.find_one({"email": user_email})
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
 
-    user_folder_name = user.get("user_dedicated_folder")
-    if not user_folder_name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User folder configuration is missing.")
-
+    # --- Save the image file (your existing logic) ---
+    user_folder_name = user.get("user_dedicated_folder", "default_user")
     base_image_dir = "images"
     user_specific_dir = os.path.join(base_image_dir, user_folder_name)
     os.makedirs(user_specific_dir, exist_ok=True)
-
     file_path = os.path.join(user_specific_dir, image_file.filename)
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(image_file.file, buffer)
 
-    return {
-        "message": "Image uploaded successfully",
-        "image_path_on_server": file_path,
-        "user_query": user_message,
-        "ai_response": f"I have received your image '{image_file.filename}'. What would you like to know about it?"
-    }
+    # --- Create the message objects ---
+    # The user's message now includes the image path
+    user_query_message = Message(
+        role="user",
+        content=user_message,
+        image_path=file_path
+    )
+    # The AI's response
+    ai_response_message = Message(
+        role="ai",
+        content=f"I have received your image '{image_file.filename}'. What would you like to know about it?"
+    )
+
+    # --- Update the database (same logic as your text endpoint) ---
+    if not conversation_id:
+        # Create a new conversation
+        new_conversation = Conversation(
+            title=user_message or "Image Query",
+            messages=[user_query_message, ai_response_message]
+        )
+        await user_collection.update_one(
+            {"email": user_email},
+            {"$push": {"chat_history": new_conversation.model_dump()}}
+        )
+        # Return the new conversation object so the frontend can update
+        return {
+            "ai_response": ai_response_message.content,
+            "new_conversation": new_conversation.model_dump()
+        }
+    else:
+        # Append to an existing conversation
+        await user_collection.update_one(
+            {"email": user_email, "chat_history.id": conversation_id},
+            {"$push": {"chat_history.$.messages": {"$each": [user_query_message.model_dump(), ai_response_message.model_dump()]}}}
+        )
+        # Return null for new_conversation as it's an existing chat
+        return {
+            "ai_response": ai_response_message.content,
+            "new_conversation": None
+        }
+
+
 
 @app.post("/api/chat/invoke_with_text_file")
 async def handle_chat_with_text_file(
@@ -242,6 +304,38 @@ async def handle_chat_with_text_file(
         "user_query": user_message,
         "ai_response": f"I have received your file '{text_file.filename}'. How can I help you with it?"
     }
+
+
+
+@app.delete("/api/chats/{conversation_id}")
+async def delete_chat_history(conversation_id: str, request_body: DeleteChatRequest = Body(...)):
+    """
+    Finds a user by email and removes a specific conversation
+    from their chat_history array using the conversation's ID.
+    """
+    # 1. First, find the user document to ensure it exists.
+    user = await user_collection.find_one({"email": request_body.user_email})
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with email '{request_body.user_email}' not found."
+        )
+
+    # 2. If the user exists, perform the update using $pull.
+    update_result = await user_collection.update_one(
+        {"email": request_body.user_email},
+        {"$pull": {"chat_history": {"id": conversation_id}}}
+    )
+
+    # 3. Check if the document was successfully modified.
+    # If matched_count is 1 but modified_count is 0, it means the conversation ID was not found.
+    if update_result.modified_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Conversation with ID '{conversation_id}' was not found in the user's history."
+        )
+
+    return {"status": "success", "message": "Conversation deleted successfully."}
 
 # --- Main entry point for running the app ---
 if __name__ == "__main__":

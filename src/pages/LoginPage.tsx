@@ -1,4 +1,7 @@
+// src/pages/LoginPage.tsx
+
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
 import { useAuth } from '../contexts/AuthContext';
 import AuthLayout from '../components/AuthLayout';
 
@@ -11,17 +14,20 @@ export default function LoginPage({ onSwitchToRegister }: LoginPageProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const { login } = useAuth();
+  const navigate = useNavigate(); // Initialize the navigate function
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     try {
       await login(email, password);
+      navigate('/'); // Redirect to home on successful login
     } catch (err: any) {
       setError(err.message);
     }
   };
 
+  
   return (
     <AuthLayout title="Welcome back! Please log in.">
       <form onSubmit={handleSubmit}>

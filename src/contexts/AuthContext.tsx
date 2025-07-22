@@ -1,4 +1,8 @@
+// src/contexts/AuthContext.tsx
+
 import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+// Import the new logout function from your API service
+import { logoutUser } from '../services/chatApi';
 
 interface User {
   id: string;
@@ -11,7 +15,7 @@ interface AuthContextType {
   loading: boolean;
   register: (name: string, email: string, password: string) => Promise<any>;
   login: (email: string, password: string) => Promise<any>;
-  logout: () => void;
+  logout: () => Promise<void>; // Logout is now an async function that returns a Promise
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -67,9 +71,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return data;
   };
 
-  const logout = () => {
-    setUser(null);
-    document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+  // --- THIS IS THE CORRECTED LOGOUT FUNCTION ---
+  const logout = async () => {
+    try {
+      // 1. Call the backend API to clear the HttpOnly cookie
+      await logoutUser();
+      // 2. Clear the user from the React app state
+      setUser(null);
+      // 3. Optional but recommended: Redirect to the login page
+      window.location.href = '/login';
+    } catch (error) {
+      console.error("Logout failed:", error);
+      // If the API fails, you might still want to clear the local state
+      setUser(null);
+    }
   };
 
   const value = { user, loading, register, login, logout };
