@@ -1,29 +1,52 @@
 // src/components/chat/Messages.tsx
 
-import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Message } from '../../types';
+import React, { useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
+import type { Message } from '../../services/chatApi';
 import { useAuth } from '../../contexts/AuthContext';
 
-// A simple avatar for the user
-function UserAvatar({ name }: { name: string }) {
-  const initial = name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U';
+// --- Avatar Components ---
+
+// A new, unique SVG icon for the AI avatar
+function AiAvatar() {
   return (
-    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-white flex-shrink-0">
-      <span className="text-xs font-bold">{initial}</span>
+    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-purple-600 text-white flex-shrink-0">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        className="w-5 h-5"
+      >
+        <path
+          fillRule="evenodd"
+          d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"
+          clipRule="evenodd"
+        />
+      </svg>
     </div>
   );
 }
 
-// A simple avatar for the AI
-function AiAvatar() {
-    return (
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-600 text-white flex-shrink-0">
-            <svg stroke="currentColor" fill="none" strokeWidth="1.5" viewBox="0 0 24 24" aria-hidden="true" height="20" width="20" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c.251.023.501.05.75.082a.75.75 0 01.75.75v5.714a2.25 2.25 0 00.659 1.591L14.25 14.5M9.75 3.104a11.932 11.932 0 014.5 0m-4.5 0a11.932 11.932 0 00-4.5 0m1.5 11.41L5.832 15.64a2.25 2.25 0 01-2.15-2.151V9.75a2.25 2.25 0 012.25-2.25h.008a2.25 2.25 0 012.25 2.25v.383m1.5 11.41a11.932 11.932 0 014.5 0m-4.5 0a11.932 11.932 0 00-4.5 0m6.75-11.41L18.168 15.64a2.25 2.25 0 002.15-2.151V9.75a2.25 2.25 0 00-2.25-2.25h-.008a2.25 2.25 0 00-2.25 2.25v.383M14.25 14.5a11.932 11.932 0 014.5 0m-4.5 0a11.932 11.932 0 00-4.5 0"></path></svg>
-        </div>
-    )
+// The avatar for the User, which is working correctly
+function UserAvatar({ name }: { name: string }) {
+  let initials = 'U';
+  if (name) {
+    const parts = name.split(' ').filter(Boolean);
+    if (parts.length > 1) {
+      initials = (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    } else if (parts.length === 1) {
+      initials = parts[0][0].toUpperCase();
+    }
+  }
+
+  return (
+    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-green-600 text-white flex-shrink-0 font-bold">
+      <span>{initials}</span>
+    </div>
+  );
 }
 
+// --- Main Messages Component ---
 
 interface MessagesProps {
   messages: Message[];
@@ -31,37 +54,40 @@ interface MessagesProps {
 
 export default function Messages({ messages }: MessagesProps) {
   const { user } = useAuth();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   return (
-    <div className="p-4 space-y-6">
-      <AnimatePresence>
-        {messages.map((message, index) => (
-          <motion.div
-            key={index}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
-            className={`flex items-start gap-4 ${
-              message.role === 'user' ? 'justify-end' : 'justify-start'
+    <div className="space-y-6 p-4">
+      {messages.map((msg, index) => (
+        <motion.div
+          key={index}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: 'easeOut' }}
+          className={`flex items-start gap-4 ${
+            msg.role === 'user' ? 'justify-end' : 'justify-start'
+          }`}
+        >
+          {/* Show the AI avatar for 'ai' role */}
+          {msg.role === 'ai' && <AiAvatar />}
+
+          <div
+            className={`max-w-xl rounded-lg px-4 py-2 text-white shadow-md ${
+              msg.role === 'user' ? 'bg-blue-600' : 'bg-zinc-700'
             }`}
           >
-            {message.role === 'assistant' && <AiAvatar />}
-            
-            <div
-              className={`max-w-xl rounded-lg px-4 py-2.5 ${
-                message.role === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-zinc-700 text-white'
-              }`}
-            >
-              <p className="whitespace-pre-wrap">{message.content}</p>
-            </div>
+            <p className="whitespace-pre-wrap">{msg.content}</p>
+          </div>
 
-            {message.role === 'user' && <UserAvatar name={user?.name ?? 'User'} />}
-          </motion.div>
-        ))}
-      </AnimatePresence>
+          {/* Show the User avatar for 'user' role */}
+          {msg.role === 'user' && <UserAvatar name={user?.name ?? ''} />}
+        </motion.div>
+      ))}
+      <div ref={messagesEndRef} />
     </div>
   );
 }
