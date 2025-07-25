@@ -1,6 +1,6 @@
 // src/components/ChatView.tsx
 
-import React, { useState } from 'react';
+import React from 'react'; // No longer need useState here
 import Landing from './chat/Landing';
 import Messages from './chat/Messages';
 import TextInput from './chat/TextInput';
@@ -12,9 +12,13 @@ interface ChatViewProps {
   isNewChat: boolean;
   isSidebarOpen: boolean;
   messages: Message[];
-  onSendMessage: (message: string, image?: File, textFile?: File, isRagActive?: boolean) => void;
+  // 1. Update the onSendMessage signature to include the model
+  onSendMessage: (message: string, model: string, image?: File, textFile?: File, isRagActive?: boolean) => void;
   isRagActive: boolean;
   setIsRagActive: (isActive: boolean) => void;
+  // 2. Add props to receive model state from the parent
+  selectedModel: string;
+  setSelectedModel: (model: string) => void;
 }
 
 export default function ChatView({
@@ -24,22 +28,27 @@ export default function ChatView({
   onSendMessage,
   isRagActive,
   setIsRagActive,
+  // 3. Destructure the new props
+  selectedModel,
+  setSelectedModel,
 }: ChatViewProps) {
-  const [selectedModel, setSelectedModel] = useState('gpt-4o');
+  // 4. Remove the local state for selectedModel
+  // const [selectedModel, setSelectedModel] = useState('gpt-4o');
 
   const handleLocalSendMessage = (message: string, image?: File, textFile?: File) => {
-    onSendMessage(message, image, textFile, isRagActive);
+    // 5. Pass the selectedModel to the onSendMessage handler
+    onSendMessage(message, selectedModel, image, textFile, isRagActive);
   };
 
   const headerContent = (
     <div className="flex items-center gap-2">
       <Logo />
+      {/* 6. ModelSelector now uses the props passed from ChatPage */}
       <ModelSelector selectedModel={selectedModel} setSelectedModel={setSelectedModel} />
     </div>
   );
 
   // --- JSX Rendering ---
-  // We remove the RAGToggle from here and pass its props to TextInput instead
   if (isNewChat) {
     return (
       <div className="relative flex h-full w-full flex-1 flex-col overflow-hidden">

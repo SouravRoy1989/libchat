@@ -17,6 +17,8 @@ export default function ChatPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isRagActive, setIsRagActive] = useState(false);
+  // 1. Add state for the selected model here
+  const [selectedModel, setSelectedModel] = useState('gpt-4o');
 
 
   const refreshConversations = () => {
@@ -54,14 +56,15 @@ export default function ChatPage() {
       console.error("Could not delete conversation:", error);
     }
   };
-  const handleSendMessage = async (message: string, image?: File, textFile?: File, useRag?: boolean) => {
+  // 2. Add 'model' as an argument to this function
+  const handleSendMessage = async (message: string, model: string, image?: File, textFile?: File, useRag?: boolean) => {
     if (!user) return;
     const userMessage: Message = { role: 'user', content: message || (image ? "Image uploaded" : "File uploaded") };
     setMessages(prev => [...prev, userMessage]);
     try {
       let data;
       let response;
-      const model = 'gpt-4o';
+      // 3. The 'model' variable from the arguments is now used here
       const textEndpoint = useRag ? 'invoke_rag' : 'invoke';
       const imageEndpoint = useRag ? 'invoke_rag_with_image' : 'invoke_with_image';
       const fileEndpoint = useRag ? 'invoke_rag_with_text_file' : 'invoke_with_text_file';
@@ -110,7 +113,6 @@ export default function ChatPage() {
   const handleNewChat = () => {
     setActiveConversationId(null);
     setMessages([]);
-    // Add this line to reset the RAG toggle to its default inactive state
     setIsRagActive(false);
   };
 
@@ -134,6 +136,7 @@ export default function ChatPage() {
           {!isSidebarOpen && (
             <OpenSidebarButton onClick={() => setIsSidebarOpen(true)} />
           )}
+          {/* 4. Pass the model state and setter function to ChatView */}
           <ChatView
             isNewChat={activeConversationId === null && messages.length === 0}
             isSidebarOpen={isSidebarOpen}
@@ -141,6 +144,8 @@ export default function ChatPage() {
             onSendMessage={handleSendMessage}
             isRagActive={isRagActive}
             setIsRagActive={setIsRagActive}
+            selectedModel={selectedModel}
+            setSelectedModel={setSelectedModel}
           />
         </main>
       </div>
