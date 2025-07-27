@@ -1,23 +1,47 @@
-// src/services/chatApi.ts
-
 import axios from 'axios';
 
 const API_URL = 'http://localhost:8000/api';
 
 // --- DATA STRUCTURES ---
+
+/**
+ * Represents a single source document from a RAG response.
+ */
+export interface RagSource {
+  name: string;
+  path: string;
+}
+
+/**
+ * Represents the structured content of a RAG response.
+ */
+export interface RagResponse {
+  content: string; // The textual answer
+  sources: RagSource[]; // The array of source documents
+}
+
+/**
+ * Represents a single message in a conversation.
+ * The 'content' can now be a simple string or a complex RAG object.
+ */
 export interface Message {
   role: 'user' | 'ai';
-  content: string;
+  content: string | RagResponse;
 }
 
 export interface Conversation {
   id: string;
   title: string;
   messages: Message[];
+  rag_mode?: number; // Optional field to track if a conversation is RAG
 }
 
+/**
+ * The expected response structure from a chat API call.
+ * The 'ai_response' can be a string or a RAG object.
+ */
 interface ChatResponse {
-  ai_response: string;
+  ai_response: string | RagResponse;
   new_conversation: Conversation | null;
 }
 
@@ -34,6 +58,8 @@ export const fetchUserWithHistory = async (): Promise<{ chat_history: Conversati
   }
 };
 
+// NOTE: Your ChatPage.tsx builds the fetch request manually.
+// This function is here for completeness but is not used in your current setup.
 export const postChatMessage = async (
   email: string,
   message: string,
@@ -43,7 +69,7 @@ export const postChatMessage = async (
     user_email: email,
     human_text: message,
     conversation_id: conversationId,
-    user_model: 'gpt-4o',
+    user_model: 'gpt-4o', // Model is hardcoded here
   };
   const response = await axios.post<ChatResponse>(`${API_URL}/chat/invoke`, payload, {
     withCredentials: true,
@@ -65,7 +91,7 @@ export const deleteConversation = async (email: string, conversationId: string):
 };
 
 /**
- * NEW FUNCTION: Calls the backend to log the user out.
+ * Calls the backend to log the user out.
  * This will clear the server-side session cookie.
  */
 export const logoutUser = async (): Promise<void> => {

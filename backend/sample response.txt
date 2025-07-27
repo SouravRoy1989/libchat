@@ -1,0 +1,1 @@
+{' \nHow to Start a Blog in 6 Steps \n1. Pick a blog name. Choose a descriptive name for your blog. \n2. Get your blog online. ', 'source_name': ['anather_sample.pdf',"2nd_doc.pdf"], 'source_path': ['C:/libra_dev/pytthon_api/anather_sample2.pdf','C:/libra_dev/pytthon_api/anather_sample.pdf']}

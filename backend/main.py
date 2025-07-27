@@ -5,6 +5,9 @@ import uuid
 import os
 import shutil
 from typing import Optional
+from fastapi.responses import FileResponse 
+import os 
+
 
 # Import the specific collection type for better code completion and type checking
 from motor.motor_asyncio import AsyncIOMotorCollection
@@ -169,6 +172,7 @@ async def get_config():
 async def handle_chat(chat_request: ChatRequest):
     # ... (find user logic)
 
+    print("gggggggggggggggggggggggggggggg", chat_request )
     user_query_message = Message(role="user", content=chat_request.human_text)
     ai_response_message = Message(role="ai", content=f"This is a hardcoded AI response to your message: {chat_request.human_text}")
 
@@ -372,53 +376,73 @@ async def delete_chat_history(conversation_id: str, request_body: DeleteChatRequ
 
     return {"status": "success", "message": "Conversation deleted successfully."}
 
+
+
+def process_rag_response(query: str):
+    # In a real app, this would dynamically generate based on the query
+    return {
+        "content": "To start a blog, you should first pick a name and then get it online. Choosing a descriptive name is key for your audience.",
+        "sources": [
+            {
+                "name": "blogging_guide.pdf",
+                "path": "C:/path_on_your_server/docs/blogging_guide.pdf"
+            },
+            {
+                "name": "marketing_tips.pdf",
+                "path": "C:/path_on_your_server/docs/marketing_tips.pdf"
+            }
+        ]
+    }
+
 @app.post("/api/chat/invoke_rag")
 async def handle_chat_with_rag(chat_request: ChatRequest):
-    """
-    Handles a RAG query, saves it to the database with rag_mode=1,
-    and returns the response.
-    """
     user = await user_collection.find_one({"email": chat_request.user_email})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # In a real RAG implementation, you would use the query to find documents
-    # and pass them as context to your LLM here.
-    
-    user_query_message = Message(role="user", content=chat_request.human_text)
-    ai_response_message = Message(
-        role="ai", 
-        content=f"[Answer from Documents]: This is a RAG response to your message: '{chat_request.human_text}'"
-    )
+    # 1. Get the structured RAG output
+    rag_output = process_rag_response(chat_request.human_text)
 
-    # --- Database Logic (this is the crucial part) ---
+    user_query_message = Message(role="user", content=chat_request.human_text)
+    # 2. The AI message content is now the structured object
+    ai_response_message = Message(role="ai", content=rag_output)
+    
+    # --- Database and response logic ---
     if not chat_request.conversation_id:
-        # Create a new conversation with rag_mode set to 1
         new_conversation = Conversation(
             title=chat_request.human_text,
-            rag_mode=1, # Mark this as a RAG conversation
+            rag_mode=1,
             messages=[user_query_message, ai_response_message]
         )
         await user_collection.update_one(
             {"email": chat_request.user_email},
             {"$push": {"chat_history": new_conversation.model_dump()}}
         )
-        # MUST return the new_conversation object to fix the frontend bug
         return {
-            "ai_response": ai_response_message.content,
+            "ai_response": ai_response_message.content, # Pass the object
             "new_conversation": new_conversation.model_dump()
         }
     else:
-        # Append to an existing conversation
         await user_collection.update_one(
             {"email": chat_request.user_email, "chat_history.id": chat_request.conversation_id},
             {"$push": {"chat_history.$.messages": {"$each": [user_query_message.model_dump(), ai_response_message.model_dump()]}}}
         )
-        # Return null because it's not a new conversation
         return {
-            "ai_response": ai_response_message.content,
+            "ai_response": ai_response_message.content, # Pass the object
             "new_conversation": None
         }
+
+
+@app.get("/api/download")
+async def download_file(file_path: str):
+    """
+    Serves a file for download.
+    The frontend will call this with ?file_path=/path/to/your/file.pdf
+    """
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    return FileResponse(path=file_path, filename=os.path.basename(file_path), media_type='application/octet-stream')
 
 
 # --- Main entry point for running the app ---

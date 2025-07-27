@@ -1,16 +1,29 @@
 # models.py
 from pydantic import BaseModel, Field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 
 import uuid
 
+# --- NEW Models for RAG ---
+class RagSource(BaseModel):
+    """Defines the structure for a single source document."""
+    name: str
+    path: str
+
+class RagResponse(BaseModel):
+    """Defines the structure for the entire RAG response object."""
+    content: str
+    sources: List[RagSource]
 
 class Message(BaseModel):
-    role: str  # "user" or "ai"
-    content: str
+    
+    role: str
+    # This Union is the key fix. It allows content to be one of several types.
+    content: Union[str, RagResponse]
+    
+    # Optional fields from your other endpoints
     image_path: Optional[str] = None
-    # Add a field to store the filename when RAG is used
     file_name: Optional[str] = None
 
 class Conversation(BaseModel):
@@ -31,24 +44,11 @@ class LoginRequest(BaseModel):
     password: str
 
 
-"""
-class Message(BaseModel):
-    role: str  # "user" or "ai"
-    content: str
-    image_path: Optional[str] = None 
 
-"""
 
-"""
-class Conversation(BaseModel):
-    # A unique ID for each conversation thread
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    title: str # The first message from the user
-    messages: List[Message] = []
-"""
 class ChatRequest(BaseModel):
     user_email: str
-    user_model: str # You can decide if you need this per message
+    user_model: str 
     human_text: str
     # Add conversation_id to handle existing chats
     conversation_id: Optional[str] = None
@@ -57,20 +57,10 @@ class User(BaseModel):
     id: str = Field(alias="_id")
     name: str
     email: str
-    chat_history: List[Conversation] = [] # Use the new Conversation model
-    
+    chat_history: List[Conversation] = [] 
     class Config:
         populate_by_name = True
         arbitrary_types_allowed = True
 
 class DeleteChatRequest(BaseModel):
     user_email: str
-
-
-# models.py
-
-from pydantic import BaseModel, Field
-from typing import List, Optional
-import uuid
-
-# ... (keep your other models like User, RegisterRequest, etc.) ...
