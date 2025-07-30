@@ -1,6 +1,7 @@
 # models.py
 from pydantic import BaseModel, Field
 from typing import Dict, List, Optional, Union
+from datetime import datetime
 
 
 import uuid
@@ -64,3 +65,13 @@ class User(BaseModel):
 
 class DeleteChatRequest(BaseModel):
     user_email: str
+
+class VectorFile(BaseModel):
+    """
+    Model for storing metadata about uploaded files for RAG.
+    """
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_email: str
+    file_name: str
+    file_path: str
+    upload_date: datetime = Field(default_factory=datetime.utcnow)

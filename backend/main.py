@@ -4,9 +4,10 @@ from fastapi.middleware.cors import CORSMiddleware
 import uuid
 import os
 import shutil
-from typing import Optional
+from typing import Optional, List
 from fastapi.responses import FileResponse 
 import os 
+from datetime import datetime
 
 
 # Import the specific collection type for better code completion and type checking
@@ -15,8 +16,13 @@ from passlib.context import CryptContext
 
 # --- Local Imports ---
 from db_connections import get_user_collection
+from services.vector_processing import recreate_user_vector_store
 from utils.file_functions import generate_formatted_name
-from models import DeleteChatRequest, RegisterRequest, LoginRequest, User, ChatRequest, Message, Conversation
+from models import (DeleteChatRequest, 
+                    RegisterRequest, 
+                    LoginRequest, 
+                    User, 
+                    ChatRequest, Message, Conversation, VectorFile) 
 
 # --- FastAPI App Configuration ---
 # Create the FastAPI app instance
@@ -443,6 +449,100 @@ async def download_file(file_path: str):
         raise HTTPException(status_code=404, detail="File not found")
     
     return FileResponse(path=file_path, filename=os.path.basename(file_path), media_type='application/octet-stream')
+
+
+@app.get("/api/files/list/{user_email}", response_model=List[VectorFile])
+async def list_user_files(user_email: str):
+    """
+    Fetches the list of uploaded file metadata for a specific user.
+    """
+    if user_collection is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
+            detail="Database service is not available."
+        )
+
+    user = await user_collection.find_one({"email": user_email})
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+    print("hhhhhhhhhhhhhhhhhhhhhhhhhh", user.get("vector_store_files"))
+    # Return the 'vector_store_files' array, or an empty list if it doesn't exist
+    return user.get("vector_store_files", [])
+
+@app.post("/api/files/vectorupload")
+async def upload_and_process_file(user_email: str = Form(...), file: UploadFile = File(...)):
+    """
+    Handles file upload, saves it, updates the vector store, and embeds the
+    file's metadata directly into the user's document in MongoDB.
+    """
+    print("hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh")
+    # Ensure the user_collection is initialized before use.
+    if user_collection is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
+            detail="Database service is not available. Please try again later."
+        )
+    
+    # Find the user document in the database.
+    user = await user_collection.find_one({"email": user_email})
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    
+    # Get the user's dedicated folder name from their document.
+    user_folder_name = user.get("user_dedicated_folder")
+    if not user_folder_name:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User folder not configured.")
+
+    # Define user-specific paths for storing files and the vector index.
+    base_user_dir = "user_data"
+    rag_files_dir = os.path.join(base_user_dir, user_folder_name, "rag_files")
+    vector_store_dir = os.path.join(base_user_dir, user_folder_name, "vector_store")
+    os.makedirs(rag_files_dir, exist_ok=True)
+    os.makedirs(vector_store_dir, exist_ok=True)
+
+    # Save the uploaded file to the user's 'rag_files' directory.
+    file_path = os.path.join(rag_files_dir, file.filename)
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    finally:
+        file.file.close()
+
+    # Create a dictionary for the new file's metadata.
+    file_record = {
+        "id": str(uuid.uuid4()),
+        "user_email": user_email,
+        "file_name": file.filename,
+        "file_path": file_path,
+        "upload_date": datetime.utcnow()
+    }
+    
+    
+    # This prevents duplicate entries if the same file is uploaded again.
+    await user_collection.update_one(
+        {"email": user_email},
+        {"$pull": {"vector_store_files": {"file_name": file.filename}}}
+    )
+
+    # This array will be created in the document if it doesn't already exist.
+    await user_collection.update_one(
+        {"email": user_email},
+        {"$push": {"vector_store_files": file_record}}
+    )
+    
+    print(f"Metadata for {file.filename} saved to user document in MongoDB.")
+
+    # Trigger the separate process to recreate the vector store.
+    recreate_user_vector_store(rag_files_dir, vector_store_dir)
+    
+    return {
+        "message": "File uploaded and metadata added to user document. Vector store is updating.",
+        "filename": file.filename,
+        "path": file_path
+    }
+
+
 
 
 # --- Main entry point for running the app ---

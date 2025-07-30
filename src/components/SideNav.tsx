@@ -1,11 +1,11 @@
 // src/components/SideNav.tsx
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
 import ConversationHistory from './ConversationHistory';
 import type { Conversation } from '../services/chatApi';
 
+// --- UserAvatar Sub-component ---
 function UserAvatar({ name }: { name: string }) {
   let initials = 'U';
   if (name) {
@@ -23,6 +23,8 @@ function UserAvatar({ name }: { name: string }) {
   );
 }
 
+// --- Props Interface ---
+// All props are explicitly defined here.
 interface SideNavProps {
   setIsSidebarOpen: (isOpen: boolean) => void;
   onNewChat: () => void;
@@ -30,22 +32,27 @@ interface SideNavProps {
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
   activeConversationId: string | null;
-  onOpenSettings: () => void; // New prop to open the modal
+  onOpenSettings: () => void;
+  onOpenFilesModal: () => void;
 }
 
+// --- Main SideNav Component ---
 export default function SideNav({
+  // All props are now correctly destructured from the SideNavProps interface
   setIsSidebarOpen,
   onNewChat,
   conversations,
   onSelectConversation,
   onDeleteConversation,
   activeConversationId,
-  onOpenSettings, // Destructure the new prop
+  onOpenSettings,
+  onOpenFilesModal,
 }: SideNavProps) {
   const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Effect to close the user menu when clicking outside of it.
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -58,8 +65,14 @@ export default function SideNav({
     };
   }, [menuRef]);
 
+  // --- Event Handlers ---
+  const handleFilesClick = () => {
+    onOpenFilesModal();
+    setIsMenuOpen(false);
+  };
+
   const handleSettingsClick = () => {
-    onOpenSettings(); // Call the function passed from the parent
+    onOpenSettings();
     setIsMenuOpen(false);
   };
 
@@ -68,6 +81,8 @@ export default function SideNav({
     setIsMenuOpen(false);
   };
 
+  // --- JSX Return ---
+  // The JSX is now complete and valid.
   return (
     <motion.nav
       initial={{ x: '-100%' }}
@@ -76,6 +91,7 @@ export default function SideNav({
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       className="flex h-full w-64 flex-col bg-black p-2 flex-shrink-0"
     >
+      {/* Top Section: New Chat and Close Sidebar */}
       <div className="mb-2 flex items-center justify-between">
         <button
           onClick={onNewChat}
@@ -93,6 +109,7 @@ export default function SideNav({
         </button>
       </div>
 
+      {/* Conversation History */}
       <ConversationHistory
         conversations={conversations}
         onSelectConversation={onSelectConversation}
@@ -100,20 +117,17 @@ export default function SideNav({
         activeConversationId={activeConversationId}
       />
 
+      {/* Bottom Section: User Menu */}
       <div ref={menuRef} className="relative mt-auto border-t border-zinc-700 pt-2">
         {isMenuOpen && (
           <div className="absolute bottom-full mb-2 w-full rounded-lg bg-zinc-800 text-white shadow-lg">
             <div className="p-2">
               <div className="px-3 py-2 text-sm text-gray-400">{user?.email}</div>
               <hr className="my-1 border-zinc-700" />
-              <button className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-zinc-700">
+              <button onClick={handleFilesClick} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-zinc-700">
                 <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                 My Files
               </button>
-              <a href="https://pwc.com" target="_blank" rel="noopener noreferrer" className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-zinc-700">
-                <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                Help & FAQ
-              </a>
               <button onClick={handleSettingsClick} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-zinc-700">
                 <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                 Settings
