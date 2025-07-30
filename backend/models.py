@@ -75,3 +75,9 @@ class VectorFile(BaseModel):
     file_name: str
     file_path: str
     upload_date: datetime = Field(default_factory=datetime.utcnow)
+    
+    
+class DeleteFileRequest(BaseModel):
+    user_email: str
+    file_id: str
+    

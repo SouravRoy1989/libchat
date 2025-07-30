@@ -1,6 +1,4 @@
-// src/components/MyFilesModal.tsx
-
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- Reusable Spinner Component ---
@@ -23,10 +21,10 @@ interface MyFilesModalProps {
   onClose: () => void;
   files: ManagedFile[];
   onFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onDeleteFile: (fileId: string) => void;
+  onDeleteFile: (fileId: string) => Promise<void>; // Changed to a promise
   isUploading: boolean;
   uploadError: string | null;
-  isRagActive: boolean; // Prop to control the disabled state
+  isRagActive: boolean;
 }
 
 // --- Icon Components ---
@@ -45,9 +43,22 @@ export default function MyFilesModal({
   isRagActive,
 }: MyFilesModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleDeleteClick = async (fileId: string) => {
+    setDeletingFileId(fileId); // Show spinner for this specific file
+    try {
+        await onDeleteFile(fileId);
+    } catch (e) {
+        console.error("Deletion failed:", e);
+        // Optionally, you can set an error state here to show a message
+    } finally {
+        setDeletingFileId(null); // Hide spinner
+    }
   };
 
   return (
@@ -83,8 +94,13 @@ export default function MyFilesModal({
                       <p className="font-medium">{file.name}</p>
                       <p className="text-xs text-gray-400">Uploaded: {file.uploadDate}</p>
                     </div>
-                    <button onClick={() => onDeleteFile(file.id)} className="text-gray-500 hover:text-red-500 p-2 rounded-full transition-colors" title={`Delete ${file.name}`}>
-                      <TrashIcon />
+                    <button 
+                      onClick={() => handleDeleteClick(file.id)} 
+                      disabled={deletingFileId === file.id}
+                      className="text-gray-500 hover:text-red-500 p-2 rounded-full transition-colors disabled:cursor-not-allowed" 
+                      title={`Delete ${file.name}`}
+                    >
+                      {deletingFileId === file.id ? <SpinnerIcon /> : <TrashIcon />}
                     </button>
                   </div>
                 ))

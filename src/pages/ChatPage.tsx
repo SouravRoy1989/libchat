@@ -1,5 +1,3 @@
-// src/pages/ChatPage.tsx
-
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import SideNav from '../components/SideNav';
@@ -10,9 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { fetchUserWithHistory, deleteConversation, Conversation, Message } from '../services/chatApi';
 
 // --- NEW IMPORTS ---
-// Import the file modal component and its type definition.
 import MyFilesModal, { ManagedFile } from '../components/modals/MyFilesModal';
-// Import the functions that will interact with your new file API endpoints.
 import { fetchFiles, uploadFile, deleteFile } from '../services/fileApi';
 
 export default function ChatPage() {
@@ -33,7 +29,7 @@ export default function ChatPage() {
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
 
-    // --- NEW FUNCTION: To fetch the list of files from the backend ---
+    // --- FUNCTIONS for fetching data ---
     const refreshFiles = async () => {
         if (!user) return;
         try {
@@ -41,11 +37,9 @@ export default function ChatPage() {
             setFiles(userFiles);
         } catch (error) {
             console.error("Could not refresh files:", error);
-            // You can set an error state here if needed
         }
     };
 
-    // --- EXISTING CONVERSATION REFRESH FUNCTION ---
     const refreshConversations = () => {
         if (user) {
             fetchUserWithHistory().then(data => {
@@ -54,13 +48,11 @@ export default function ChatPage() {
         }
     };
 
-    // --- MODIFIED EFFECT: Fetches both conversations and files on user change ---
     useEffect(() => {
         refreshConversations();
         refreshFiles(); 
     }, [user]);
 
-    // --- EXISTING EFFECT: For messages (no changes) ---
     useEffect(() => {
         if (activeConversationId) {
             const activeConvo = conversations.find(c => c.id === activeConversationId);
@@ -70,47 +62,40 @@ export default function ChatPage() {
         }
     }, [activeConversationId, conversations]);
 
-    // --- NEW FUNCTION: To handle file upload to the backend ---
+    // --- FUNCTIONS for handling user actions ---
     const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = event.target.files?.[0];
         if (!selectedFile || !user) return;
-
         setIsUploading(true);
         setUploadError(null);
-
         try {
-            // The uploadFile service now takes the user's email and the file object
             await uploadFile(user.email, selectedFile);
-            await refreshFiles(); // Refresh the list to show the new file
+            await refreshFiles();
         } catch (error: any) {
-            console.error("File upload failed:", error);
             setUploadError(error.message || "An unexpected error occurred.");
         } finally {
             setIsUploading(false);
-            event.target.value = ''; // Clear the file input
+            event.target.value = '';
         }
     };
 
-    // --- NEW FUNCTION: Placeholder for deleting a file ---
     const handleDeleteFile = async (fileId: string) => {
         if (!user) return;
         try {
-            // This would call your delete endpoint
             await deleteFile(user.email, fileId);
-            await refreshFiles(); // Refresh the list after deleting
+            await refreshFiles();
         } catch (error) {
             console.error("Could not delete file:", error);
-            // You could set an error state here to show in the modal
         }
     };
 
-    // --- EXISTING HANDLERS (No changes needed) ---
     const handleConversationUpdate = (newlyCreatedConversation: Conversation | null) => {
         if (newlyCreatedConversation) {
             setActiveConversationId(newlyCreatedConversation.id);
         }
         refreshConversations();
     };
+
     const handleDeleteConversation = async (conversationId: string) => {
         if (!user) return;
         try {
@@ -123,6 +108,7 @@ export default function ChatPage() {
             console.error("Could not delete conversation:", error);
         }
     };
+
     const handleSendMessage = async (message: string, model: string, image?: File, textFile?: File, useRag?: boolean) => {
         if (!user) return;
         const userMessage: Message = { role: 'user', content: message || (image ? "Image uploaded" : "File uploaded") };
@@ -173,11 +159,13 @@ export default function ChatPage() {
             setMessages(prev => [...prev, errorMessage]);
         }
     };
+
     const handleNewChat = () => {
         setActiveConversationId(null);
         setMessages([]);
         setIsRagActive(false);
     };
+
     const handleRagToggle = () => {
         const newRagState = !isRagActive;
         setIsRagActive(newRagState);

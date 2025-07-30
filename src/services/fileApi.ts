@@ -62,7 +62,6 @@ export const uploadFile = async (userEmail: string, file: File): Promise<any> =>
 export const deleteFile = async (userEmail: string, fileId: string): Promise<void> => {
   console.log(`Requesting deletion of file ${fileId} for ${userEmail}...`);
   
-  // Note: You will need to create this DELETE endpoint on your FastAPI backend.
   const response = await fetch(`${API_BASE_URL}/api/files/delete`, {
     method: "DELETE",
     headers: {
@@ -78,3 +77,5 @@ export const deleteFile = async (userEmail: string, fileId: string): Promise<voi
 
   console.log(`File ${fileId} deleted successfully.`);
 };
+
+

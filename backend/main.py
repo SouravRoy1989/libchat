@@ -18,7 +18,7 @@ from passlib.context import CryptContext
 from db_connections import get_user_collection
 from services.vector_processing import recreate_user_vector_store
 from utils.file_functions import generate_formatted_name
-from models import (DeleteChatRequest, 
+from models import (DeleteChatRequest, DeleteFileRequest, 
                     RegisterRequest, 
                     LoginRequest, 
                     User, 
@@ -541,6 +541,64 @@ async def upload_and_process_file(user_email: str = Form(...), file: UploadFile 
         "filename": file.filename,
         "path": file_path
     }
+
+
+@app.delete("/api/files/delete")
+async def delete_user_file(request: DeleteFileRequest):
+    """
+    Handles deleting a specific file for a user. It removes the file from
+    storage, deletes its metadata from MongoDB, and recreates the vector store.
+    """
+    if user_collection is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database service is not available."
+        )
+
+    # 1. Find the user
+    user = await user_collection.find_one({"email": request.user_email})
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+    # 2. Find the specific file record in the user's document
+    file_to_delete = None
+    if "vector_store_files" in user:
+        for f in user["vector_store_files"]:
+            if f.get("id") == request.file_id:
+                file_to_delete = f
+                break
+    
+    if not file_to_delete:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File record not found in user document.")
+
+    # 3. Delete the physical file from the storage folder
+    file_path = file_to_delete.get("file_path")
+    if file_path and os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+            print(f"Successfully deleted physical file: {file_path}")
+        except OSError as e:
+            print(f"Error deleting file {file_path}: {e}")
+            # Decide if you want to proceed if the physical file can't be deleted
+            # For this example, we'll proceed to at least clean up the DB record.
+    
+    # 4. Remove the file's metadata from the user's document in MongoDB
+    await user_collection.update_one(
+        {"email": request.user_email},
+        {"$pull": {"vector_store_files": {"id": request.file_id}}}
+    )
+    print(f"Removed file record {request.file_id} from MongoDB for user {request.user_email}.")
+
+    # 5. Recreate the vector store to ensure it's up-to-date
+    user_folder_name = user.get("user_dedicated_folder")
+    base_user_dir = "user_data"
+    rag_files_dir = os.path.join(base_user_dir, user_folder_name, "rag_files")
+    vector_store_dir = os.path.join(base_user_dir, user_folder_name, "vector_store")
+    
+    if os.path.exists(rag_files_dir):
+        recreate_user_vector_store(rag_files_dir, vector_store_dir)
+
+    return {"message": "File deleted successfully and vector store updated.", "deleted_file_id": request.file_id}
 
 
 
